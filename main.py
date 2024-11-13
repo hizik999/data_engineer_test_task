@@ -182,4 +182,15 @@ result1.to_csv('outputs/store_transactions_2023.csv', index=False)
 result2.to_csv('outputs/new_customers.csv', index=False)
 result3.to_csv('outputs/top_categories.csv', index=False)
 
+transactions_data['transaction_date'] = transactions_data['transaction_date'].astype('datetime64[ns]')
+transactions_data['month'] = transactions_data['transaction_date'].dt.month
+transactions_data = transactions_data.where(lambda x: x['transaction_date'].dt.year == 2023).groupby('month')['amount'].sum().reset_index()
+#print(transactions_data)
+def analyse_sale_growth(df: pd.DataFrame):
+    df['growth_rate'] = df['amount'].pct_change() * 100
+    df['growth_rate'] = df['growth_rate'].round(1)
+    return df
+
+print(analyse_sale_growth(transactions_data))
+
 session.close()
