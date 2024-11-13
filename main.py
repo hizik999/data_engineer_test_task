@@ -1,7 +1,6 @@
-### импорт библиотек для нормальной работы с sqlite
 from sqlalchemy import create_engine, inspect, Column, Integer, Numeric, String, ForeignKey
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
-
+import pandas as pd
 
 ### создание движка и определение класса-родителя Base для всех моделей
 engine = create_engine('sqlite:///mydb.db')
@@ -11,7 +10,7 @@ Base = declarative_base()
 class Store(Base):
     __tablename__ = 'stores'
 
-    id = Column(Integer, primary_key=True)
+    store_id = Column(Integer, primary_key=True)
     city = Column(String(80))
     state = Column(String(80))
 
@@ -19,11 +18,10 @@ class Store(Base):
 class Customer(Base):
     __tablename__ = 'customers'
 
-    id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, primary_key=True)
     name = Column(String(80))
     signup_date = Column(String(80))
-    ### обращаюсь к модели Store через __tablename__, чтобы лишний раз не повторяться и в случае изменения названия таблицы не пришлось бы менять названия и тут
-    store_id = Column(Integer, ForeignKey(f'{Store.__tablename__}.id'))
+    store_id = Column(Integer, ForeignKey('stores.store_id'))
 
     store = relationship(Store)
 
@@ -31,16 +29,13 @@ class Customer(Base):
 class Transaction(Base):
     __tablename__ = 'transactions'
 
-    id = Column(Integer, primary_key=True)
-    ### обращаюсь к моделям Store и Customer через __tablename__, чтобы лишний раз не повторяться
-    customer_id = Column(Integer, ForeignKey(f'{Customer.__tablename__}.id'))
-    store_id = Column(Integer, ForeignKey(f'{Store.__tablename__}.id'))
+    transaction_id = Column(Integer, primary_key=True)
+    customer_id = Column(Integer, ForeignKey('customers.customer_id'))
+    store_id = Column(Integer, ForeignKey('stores.store_id'))
     transaction_date = Column(String(80))
     category = Column(String(80))
-    ### Decimal, потому что сумма покупки может быть нецелым числом
     amount = Column(Numeric(10, 2))
 
-    ### связи с моделями Customer и Store для более правильной работы ORM
     customer = relationship(Customer)
     store = relationship(Store)
     
@@ -57,3 +52,32 @@ assert 'stores' in tables, "Таблица stores не создалась"
 assert 'customers' in tables, "Таблица customers не создалась"
 assert 'transactions' in tables, "Таблица transactions не создалась"
 
+### забираем данные из Excel файлов с помощью read_excel
+customers_data = pd.read_excel('./data/tobacco_company_data.xlsx', sheet_name='customers')
+stores_data = pd.read_excel('./data/tobacco_company_data.xlsx', sheet_name='stores')
+transactions_data = pd.read_excel('./data/tobacco_company_data.xlsx', sheet_name='transactions')
+
+### создаем сессию для работы с базой данных
+Session = sessionmaker(bind=engine)
+session = Session()
+
+# Очистка таблицы перед загрузкой новых данных
+session.query(Customer).delete()
+session.query(Store).delete()
+session.query(Transaction).delete()
+session.commit()
+
+# Загрузка данных через to_sql
+customers_data.to_sql(Customer.__tablename__, engine, index=False, if_exists='append')
+stores_data.to_sql(Store.__tablename__, engine, index=False, if_exists='append')
+transactions_data.to_sql(Transaction.__tablename__, engine, index=False, if_exists='append')
+
+
+# Проверка данных
+customer = session.query(Customer).all()
+store = session.query(Store).all()
+transaction = session.query(Transaction).all()
+
+print(customer)
+print(store)
+print(transaction)
